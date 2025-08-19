@@ -1,33 +1,385 @@
-#+TITLE: My Emacs Configuration (Master Loader)
+#+TITLE: Master Emacs Configuration
 #+PROPERTY: header-args :tangle ~/.emacs.d/config.el
 
 This file tangles the main `config.el` loader. The loader adds the `elisp`
 directory to the load path and then loads all the modular configuration files in order.
-
+* Bootstrap
 #+begin_src emacs-lisp
 ;;; -*- lexical-binding: t -*-
 
 ;; Add the directory containing our tangled files to the load-path
 (add-to-list 'load-path (expand-file-name "elisp" user-emacs-directory))
 
-;; Load all the configuration modules in order
+#+end_src
 
-;; Core Setup
-(load "01-packages")
+* Package Management
+This section sets up `use-package`, which is essential for managing the rest of the configuration.
 
-;; Development Tools & Workflow
-(load "tools/02-completion")
-(load "tools/03-export")
-(load "tools/04-dev")
-(load "tools/05-version-control")
+#+begin_src emacs-lisp
+;; Performance Management.
+(setq gc-cons-threshold (* 100 1024 1024)) ; 100MB
+(add-hook 'emacs-startup-hook
+        (lambda ()
+          (setq gc-cons-threshold (* 20 1024 1024)))) ; 20MB after startup
 
-;; Org Mode Configuration
-(load "org/06-core")
-(load "org/07-functions")
-(load "org/08-roam")
-(load "org/09-transclusion")
-(load "org/10-publishing")
+;; Ensure the 'use-package' macro is available.
+(unless (package-installed-p 'use-package)
+  (package-install 'use-package))
 
-;; Final UI and Customization
-(load "11-ui")
+;; Load use-package and configure it to automatically install missing packages.
+(require 'use-package)
+(setq use-package-always-ensure t
+      use-package-expand-minimally t
+      use-package-compute-statistics t)
+
+#+end_src
+
+* Development Tools & Workflow
+** Completion Stack
+Configuration for a modern completion system using Vertico, Consult, and Embark.
+
+#+begin_src emacs-lisp
+;; A modern, efficient completion UI for the minibuffer.
+(use-package vertico
+  :init
+  (vertico-mode))
+
+;; Display helpful annotations in the completion buffer.
+(use-package marginalia
+  :after vertico
+  :config
+  (marginalia-mode))
+
+;; Use a more flexible, orderless completion style.
+(use-package orderless
+  :custom
+  (completion-styles '(orderless basic)))
+
+;; Provides useful commands for searching and navigation.
+(use-package consult)
+
+;; The "act" keymap for taking actions on completions.
+(use-package embark
+  :bind
+  (("C-." . embark-act)
+   ("M-." . embark-dwim)))
+
+;; This is the missing package that provides integration between Embark and Consult.
+;; `use-package` will automatically install it on the next startup.
+(use-package embark-consult
+  :after (embark consult))
+
+(use-package savehist
+  :config (savehist-mode 1))
+
+(use-package recentf
+  :config 
+  (recentf-mode 1)
+  (setq recentf-max-saved-items 100))
+
+;; Corfu is an alternative to Vertico for in-buffer completion.
+;; It's best to use one stack at a time to avoid conflicts.
+;; (use-package corfu
+;;   :custom
+;;   (corfu-auto t)
+;;   (corfu-quit-no-match 'separator)
+;;   :init
+;;   (global-corfu-mode))
+#+end_src
+
+** Source-Block Export Support
+Packages needed for exporting source code nicely.
+
+#+begin_src emacs-lisp
+;; Ensures code blocks are correctly colorized in HTML exports.
+(use-package htmlize)
+
+;; Adds support for PowerShell syntax.
+(use-package powershell)
+#+end_src
+
+** LSP / Snippets / Dev Tools
+#+begin_src emacs-lisp
+;; Language Server Protocol support
+(use-package lsp-mode
+  :commands (lsp lsp-deferred)
+  :init (setq lsp-keymap-prefix "C-c l"))
+
+(use-package lsp-ui
+  :after lsp-mode
+  :commands lsp-ui-mode)
+
+;; Infastructure as Code
+(use-package terraform-mode
+  :hook (terraform-mode . lsp-deferred))
+
+(use-package ansible
+  :defer t)
+
+;; Snippet expansion
+(use-package yasnippet
+  :config
+  (let ((snippet-dir "~/coppermind/snippets"))
+    (unless (file-directory-p snippet-dir)
+      (make-directory snippet-dir t))
+    (yas-load-directory snippet-dir))
+  (yas-global-mode 1))
+
+;; On-the-fly syntax checking
+(use-package flycheck
+  :config (global-flycheck-mode))
+#+end_src
+
+** Version Control
+#+begin_src emacs-lisp
+(use-package magit
+  :bind (("C-x g" . magit-status))
+  :config
+  ;; This function defines the shell command to run "rad push"
+  (defun my/magit-rad-push ()
+    "Run 'rad push' in the current repository's root."
+    (interactive)
+    (magit-run-git-async "rad" "push")) ; We use magit's async runner for a clean UI
+
+  ;; This adds a new option to the Magit push menu
+  (transient-define-infix my/magit-push-rad ()
+    :class 'magit-process-bufr-infix
+    :command 'my/magit-rad-push
+    :description "Push to Radicle"
+    :group 'magit-push)
+
+  ;; Bind the new option to the key 'R' in the push menu
+  (transient-append-suffix 'magit-push '(0)
+    '("R" "Radicle" my/magit-push-rad)))
+#+end_src
+
+
+* Org Mode Configuration
+** Core Workflow
+Contains the main setup for Org mode, including general settings.
+
+#+begin_src emacs-lisp
+(use-package org
+  :bind (("C-c c" . org-capture)
+         ("C-c a" . org-agenda)
+         ("C-c h k" . my/org-insert-key-macro)
+         ("C-c h s" . my/org-insert-html-strong)
+         ("C-c h e" . my/org-insert-html-emphasis)
+         ("C-c h l" . my/org-insert-search-link))
+  :config
+  ;; --- General Org Settings ---
+  (setq org-directory              "~/coppermind"
+        org-agenda-files           '("~/coppermind")
+        org-ellipsis               " ▾"
+        org-startup-indented       t
+        org-default-notes-file     (expand-file-name "inbox.org" org-directory))
+
+  ;; Automatically enable spell checking for Org mode files
+  (add-hook 'org-mode-hook #'flyspell-mode)
+
+  ;; Load languages for Org Babel source blocks
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((shell      . t)
+     (emacs-lisp . t)))
+  )
+#+end_src
+
+** Custom Org Functions
+Contains all custom helper functions related to Org mode.
+
+#+begin_src emacs-lisp
+  (defun my/org-insert-key-macro ()
+    "Insert {{{key-cap()}}} and place point inside."
+    (interactive)
+    (insert "{{{key-cap()}}}")
+    (backward-char 4))
+
+  (defun my/org-insert-html-strong ()
+    "Insert an Org HTML '<strong>' tag and position point inside."
+    (interactive)
+    (insert "@@html:<strong></strong>@@")
+    (backward-char 11))
+
+  (defun my/org-insert-html-emphasis ()
+    "Insert an Org HTML '<em>' tag and position point inside."
+    (interactive)
+    (insert "@@html:<em></em>@@")
+    (backward-char 9))
+
+  (defun my/org-insert-dynamic-variable ()
+    "Prompt for a variable label and name, create a placeholder using a prefix,
+  add it to the kill-ring, and insert the necessary HTML/JS."
+    (interactive)
+    (let* ((label (read-from-minibuffer "Input Label (e.g., Windows Username): "))
+           (variable-name (read-from-minibuffer "Variable Name (e.g., USERNAME): "))
+           ;; Use a prefix-based format
+           (placeholder (format "DYNAMIC_VAR_%s" variable-name))
+           (input-id (concat (replace-regexp-in-string
+                              "[^a-zA-Z0-9-]+" ""
+                              (replace-regexp-in-string " " "-" (downcase label)))
+                             "-input")))
+      (kill-new placeholder)
+      (message "Placeholder \"%s\" copied to kill-ring. Use C-y to yank." placeholder)
+      (insert
+       (format
+        "#+HTML: <div class=\"dynamic-variable-input\">
+  ,#+HTML:   <label for=\"%s\">%s:</label>
+  ,#+HTML:   <input type=\"text\" id=\"%s\" placeholder=\"Enter your %s here...\">
+  ,#+HTML: </div>
+
+  ,#+HTML: <script>document.addEventListener('DOMContentLoaded', function() { createVariableInputHandler('%s', '%s'); });</script>
+  "
+        input-id label input-id label input-id placeholder))))
+
+  (defun my/org-insert-search-link ()
+    "Insert an org-mode search link that will open a new tab."
+    (interactive)
+    (let* ((placeholder-text (read-string "Enter placeholder text: "))
+           (search-query (read-string "Enter search query: "))
+           ;; Convert spaces to underscores and encode for URL
+           (encoded-query (replace-regexp-in-string " " "_" search-query)))
+      (insert (format "#+ATTR_HTML: :target _blank\n[[https://duckduckgo.com/?q=%s][%s]] in your browser to find the official repository"
+                      encoded-query
+                      placeholder-text))))
+
+  (defun my-org-set-title-from-filename (backend)
+    "Set the Org-mode title from the current buffer's filename."
+    (when (eq major-mode 'org-mode)
+      (let ((filename (buffer-file-name)))
+        (when filename
+          (let ((title-str (file-name-sans-extension (file-name-nondirectory filename))))
+            (setq org-html-title-prefix (list title-str)))))))
+
+  (defun my-org-export-update-asset-paths (backend)
+    "Dynamically calculate relative paths for local HTML previews (C-c C-e h h)."
+    (when (and (eq backend 'html) (buffer-file-name))
+      (let* ((asset-dir (expand-file-name "~/coppermind/assets/"))
+             (current-dir (file-name-directory (buffer-file-name)))
+             (relative-path (file-relative-name asset-dir current-dir))
+             (css-path (concat relative-path "css/site-style.css"))
+             (nav-js-path (concat relative-path "js/site-nav.js"))
+             (dyn-vars-js-path (concat relative-path "js/dynamic-variables.js")))
+        (setq-local org-html-head-extra
+                    (concat
+                     (format "<link rel=\"stylesheet\" type=\"text/css\" href=\"%s\"/>\n" css-path)
+                     (format "<script defer type=\"text/javascript\" src=\"%s\"></script>\n" nav-js-path)
+                     (format "<script type=\"text/javascript\" src=\"%s\"></script>" dyn-vars-js-path))))))
+#+end_src
+
+** Org-Roam
+#+begin_src emacs-lisp
+(use-package org-roam
+  :init
+  ;; Ensure sqlite3 is available for Org-Roam
+  (when (executable-find "sqlite3")
+    (setq emacsql-sqlite-executable (executable-find "sqlite3")))
+  :hook (after-init . org-roam-db-autosync-mode)
+  :bind (("C-c n l" . org-roam-buffer-toggle)
+         ("C-c n f" . org-roam-node-find)
+         ("C-c n i" . org-roam-node-insert)
+         ("C-c n c" . org-roam-capture))
+  :config
+    (setq org-roam-directory           (expand-file-name "~/coppermind/")
+          org-roam-db-location         (expand-file-name "org-roam.db" org-roam-directory)
+          org-roam-node-display-template
+          (concat "${title:*} " (propertize "${tags:10}" 'face 'org-tag)))
+
+    (setq org-roam-file-exclude-regexp
+      '("/assets/"
+        "/data/"))
+
+    (setq org-roam-capture-templates
+      '(("d" "default" plain "%?"
+         :target (file+head "${slug}.org"
+                           "#+title: ${title}\n#+date: %U\n\n")
+         :unnarrowed t)))
+
+  (use-package org-roam-ui
+    :after org-roam
+    :bind ("C-c n u" . org-roam-ui-mode))
+)
+#+end_src
+
+** Org-Transclusion
+#+begin_src emacs-lisp
+(use-package org-transclusion
+  :after org
+  :bind (("C-c n t" . org-transclusion-add)
+         ("C-c n T" . org-transclusion-mode))
+  :config (add-hook 'org-mode-hook #'org-transclusion-mode))
+#+end_src
+
+* Website Publishing Configuration
+For publishing the calebc42.com website.
+It relies on the core Org settings and functions defined in `Core Workflow`.
+
+#+begin_src emacs-lisp
+;; --- Custom Publishing Function ---
+(defun my-publish-to-html-with-absolute-paths (plist filename pub-dir)
+  "A combined function that:
+1. Publishes only if the file has an EXPORT_FILE_NAME property.
+2. Injects absolute paths to CSS/JS for the final website."
+  (when (with-temp-buffer
+          (insert-file-contents filename)
+          (org-entry-get (point-min) "EXPORT_FILE_NAME"))
+    (let ((org-html-head-extra
+           (concat
+            "<link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/site-style.css\"/>\n"
+            "<script defer type=\"text/javascript\" src=\"/assets/js/site-nav.js\"></script>\n"
+            "<script type=\"text/javascript\" src=\"/assets/js/dynamic-variables.js\"></script>")))
+      (org-html-publish-to-html plist filename pub-dir))))
+
+;; --- Main Publishing Project Definition ---
+(setq org-publish-project-alist
+      (let ((output-dir "~/calebc42-site/"))
+        `(("resume"
+           :base-directory "~/coppermind/career/"
+           :base-extension "org"
+           :include ("resume.org")
+           :publishing-directory ,output-dir
+           :recursive nil
+           :publishing-function my-publish-to-html-with-absolute-paths
+           :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
+          ("projects"
+           :base-directory "~/coppermind/project-codex/"
+           :base-extension "org"
+           :publishing-directory ,(concat output-dir "projects/")
+           :recursive t
+           :publishing-function my-publish-to-html-with-absolute-paths
+           :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
+          ("digital-garden"
+           :base-directory "~/coppermind/"
+           :base-extension "org"
+           :publishing-directory ,(concat output-dir "garden/")
+           :recursive t
+           :exclude "resume\\.org"
+           :exclude-tags ("private")
+           :exclude (regexp-opt '("assets" "data" "emacs"))
+           :publishing-function my-publish-to-html-with-absolute-paths
+           :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
+          ("static-assets"
+           :base-directory "~/coppermind/assets/"
+           :base-extension "css\\|js\\|png\\|jpg\\|gif\\|svg"
+           :publishing-directory ,(concat output-dir "assets/")
+           :publishing-function 'org-publish-attachment
+           :recursive t)
+          ("calebc42.com" :components ("resume" "projects" "digital-garden" "static-assets")))))
+#+end_src
+
+* Final UI and Customization
+** User Interface
+#+begin_src emacs-lisp
+;; Load a theme for a better visual experience.
+(load-theme 'misterioso t)
+
+;; Enable global line numbers and visual line wrapping for readability.
+(global-display-line-numbers-mode)
+(global-visual-line-mode 1)
+(setq visual-line-fringe-indicators '(left-curly-arrow right-curly-arrow))
+
+;; Set the initial and default window size and position.
+(setq initial-frame-alist  '((top . 10) (left . -640) (width . 105) (height . 70)))
+(setq default-frame-alist  '((top . 10) (left . -640) (width . 105) (height . 50)))
+
 #+end_src
