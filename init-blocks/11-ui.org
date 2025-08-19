@@ -1,0 +1,17 @@
+#+PROPERTY: header-args :tangle ~/.emacs.d/elisp/11-ui.el
+
+* User Interface
+#+begin_src emacs-lisp
+;; Load a theme for a better visual experience.
+(load-theme 'misterioso t)
+
+;; Enable global line numbers and visual line wrapping for readability.
+(global-display-line-numbers-mode)
+(global-visual-line-mode 1)
+(setq visual-line-fringe-indicators '(left-curly-arrow right-curly-arrow))
+
+;; Set the initial and default window size and position.
+(setq initial-frame-alist  '((top . 10) (left . -640) (width . 105) (height . 70)))
+(setq default-frame-alist  '((top . 10) (left . -640) (width . 105) (height . 50)))
+
+#+end_src

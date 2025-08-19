@@ -1,0 +1,10 @@
+#+PROPERTY: header-args :tangle ~/.emacs.d/elisp/07-transclusion.el
+
+* 7. Org-Transclusion
+#+begin_src emacs-lisp
+(use-package org-transclusion
+  :after org
+  :bind (("C-c n t" . org-transclusion-add)
+         ("C-c n T" . org-transclusion-mode))
+  :config (add-hook 'org-mode-hook #'org-transclusion-mode))
+#+end_src

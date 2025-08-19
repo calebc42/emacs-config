@@ -1,0 +1,31 @@
+#+PROPERTY: header-args:emacs-lisp :tangle ~/.emacs.d/elisp/org/06-core.el
+
+* 6. Core Org Configuration
+This file contains the main setup for Org mode, including general settings.
+
+#+begin_src emacs-lisp
+(use-package org
+  :bind (("C-c c" . org-capture)
+         ("C-c a" . org-agenda)
+         ("C-c h k" . my/org-insert-key-macro)
+         ("C-c h s" . my/org-insert-html-strong)
+         ("C-c h e" . my/org-insert-html-emphasis)
+         ("C-c h l" . my/org-insert-search-link))
+  :config
+  ;; --- General Org Settings ---
+  (setq org-directory              "~/coppermind"
+        org-agenda-files           '("~/coppermind")
+        org-ellipsis               " ▾"
+        org-startup-indented       t
+        org-default-notes-file     (expand-file-name "inbox.org" org-directory))
+
+  ;; Automatically enable spell checking for Org mode files
+  (add-hook 'org-mode-hook #'flyspell-mode)
+
+  ;; Load languages for Org Babel source blocks
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((shell      . t)
+     (emacs-lisp . t)))
+  )
+#+end_src

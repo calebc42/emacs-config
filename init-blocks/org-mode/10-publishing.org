@@ -1,0 +1,58 @@
+#+PROPERTY: header-args :tangle ~/.emacs.d/elisp/org/10-publishing.el
+
+* Website Publishing Configuration
+This file defines the entire project for publishing the calebc42.com website.
+It relies on the core Org settings and functions defined in `06-core.org`.
+
+#+begin_src emacs-lisp
+;; --- Custom Publishing Function ---
+(defun my-publish-to-html-with-absolute-paths (plist filename pub-dir)
+  "A combined function that:
+1. Publishes only if the file has an EXPORT_FILE_NAME property.
+2. Injects absolute paths to CSS/JS for the final website."
+  (when (with-temp-buffer
+          (insert-file-contents filename)
+          (org-entry-get (point-min) "EXPORT_FILE_NAME"))
+    (let ((org-html-head-extra
+           (concat
+            "<link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/site-style.css\"/>\n"
+            "<script defer type=\"text/javascript\" src=\"/assets/js/site-nav.js\"></script>\n"
+            "<script type=\"text/javascript\" src=\"/assets/js/dynamic-variables.js\"></script>")))
+      (org-html-publish-to-html plist filename pub-dir))))
+
+;; --- Main Publishing Project Definition ---
+(setq org-publish-project-alist
+      (let ((output-dir "~/calebc42-site/"))
+        `(("resume"
+           :base-directory "~/coppermind/career/"
+           :base-extension "org"
+           :include ("resume.org")
+           :publishing-directory ,output-dir
+           :recursive nil
+           :publishing-function my-publish-to-html-with-absolute-paths
+           :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
+          ("projects"
+           :base-directory "~/coppermind/project-codex/"
+           :base-extension "org"
+           :publishing-directory ,(concat output-dir "projects/")
+           :recursive t
+           :publishing-function my-publish-to-html-with-absolute-paths
+           :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
+          ("digital-garden"
+           :base-directory "~/coppermind/"
+           :base-extension "org"
+           :publishing-directory ,(concat output-dir "garden/")
+           :recursive t
+           :exclude "resume\\.org"
+           :exclude-tags ("private")
+           :exclude (regexp-opt '("assets" "data" "emacs"))
+           :publishing-function my-publish-to-html-with-absolute-paths
+           :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
+          ("static-assets"
+           :base-directory "~/coppermind/assets/"
+           :base-extension "css\\|js\\|png\\|jpg\\|gif\\|svg"
+           :publishing-directory ,(concat output-dir "assets/")
+           :publishing-function 'org-publish-attachment
+           :recursive t)
+          ("calebc42.com" :components ("resume" "projects" "digital-garden" "static-assets")))))
+#+end_src

@@ -1,0 +1,22 @@
+* Version Control
+#+begin_src emacs-lisp
+(use-package magit
+  :bind (("C-x g" . magit-status))
+  :config
+  ;; This function defines the shell command to run "rad push"
+  (defun my/magit-rad-push ()
+    "Run 'rad push' in the current repository's root."
+    (interactive)
+    (magit-run-git-async "rad" "push")) ; We use magit's async runner for a clean UI
+
+  ;; This adds a new option to the Magit push menu
+  (transient-define-infix my/magit-push-rad ()
+    :class 'magit-process-bufr-infix
+    :command 'my/magit-rad-push
+    :description "Push to Radicle"
+    :group 'magit-push)
+
+  ;; Bind the new option to the key 'R' in the push menu
+  (transient-append-suffix 'magit-push '(0)
+    '("R" "Radicle" my/magit-push-rad)))
+#+end_src

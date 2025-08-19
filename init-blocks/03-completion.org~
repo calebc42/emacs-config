@@ -1,0 +1,40 @@
+#+PROPERTY: header-args :tangle ~/.emacs.d/elisp/03-completion.el
+
+* 3. Completion Stack
+Configuration for Vertico, Marginalia, and other completion enhancements.
+
+#+begin_src emacs-lisp
+;; A modern, efficient completion UI.
+(use-package vertico
+  :init (vertico-mode))
+
+;; Display helpful annotations in the completion buffer.
+(use-package marginalia
+  :after vertico
+  :config (marginalia-mode))
+
+;; Use a more flexible, orderless completion style.
+(use-package orderless
+  :custom (completion-styles '(orderless basic)))
+
+;; Provides useful commands for searching and navigation.
+(use-package consult)
+
+;; Highlights matching parentheses, brackets, and braces.
+(use-package rainbow-delimiters
+  :hook (prog-mode-hook . rainbow-delimiters-mode))
+
+(use-package embark
+  :bind (("C-." . embark-act)
+         ("M-." . embark-dwim)))
+
+(use-package embark-consult
+  :after (embark consult))
+
+(use-package corfu
+:custom
+(corfu-auto t)
+(corfu-quit-no-match 'separator)
+:init
+(global-corfu-mode))
+#+end_src

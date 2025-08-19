@@ -1,0 +1,173 @@
+#+PROPERTY: header-args :tangle ~/.emacs.d/elisp/05-org-config.el
+
+* 5. Org Configuration
+This is the main configuration block for all things Org-related, including Roam, Transclusion, and Publishing.
+
+#+begin_src emacs-lisp
+(use-package org
+  :bind (("C-c c" . org-capture)
+         ("C-c a" . org-agenda)
+         ("C-c h k" . my/org-insert-key-macro)
+         ("C-c h s" . my/org-insert-html-strong)
+         ("C-c h e" . my/org-insert-html-emphasis)
+         ("C-c h l" . my/org-insert-search-link))
+  :config
+  ;; --- General Org Settings ---
+  (setq org-directory              "~/coppermind"
+        org-agenda-files           '("~/coppermind")
+        org-ellipsis               " ▾"
+        org-startup-indented       t
+        org-default-notes-file     (expand-file-name "inbox.org" org-directory))
+
+  ;; Automatically enable spell checking for Org mode files
+  (add-hook 'org-mode-hook #'flyspell-mode)
+
+  ;; Load languages for Org Babel source blocks
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((shell      . t)
+     (emacs-lisp . t)))
+
+  ;; --- Custom Functions for Org ---
+  (defun my/org-insert-key-macro ()
+    "Insert {{{key-cap()}}} and place point inside."
+    (interactive)
+    (insert "{{{key-cap()}}}")
+    (backward-char 4))
+
+  (defun my/org-insert-html-strong ()
+    "Insert an Org HTML '<strong>' tag and position point inside."
+    (interactive)
+    (insert "@@html:<strong></strong>@@")
+    (backward-char 11))
+
+  (defun my/org-insert-html-emphasis ()
+    "Insert an Org HTML '<em>' tag and position point inside."
+    (interactive)
+    (insert "@@html:<em></em>@@")
+    (backward-char 9))
+
+  (defun my/org-insert-dynamic-variable ()
+    "Prompt for a variable label and name, create a placeholder using a prefix,
+add it to the kill-ring, and insert the necessary HTML/JS."
+    (interactive)
+    (let* ((label (read-from-minibuffer "Input Label (e.g., Windows Username): "))
+           (variable-name (read-from-minibuffer "Variable Name (e.g., USERNAME): "))
+           ;; Use a prefix-based format
+           (placeholder (format "DYNAMIC_VAR_%s" variable-name))
+           (input-id (concat (replace-regexp-in-string
+                              "[^a-zA-Z0-9-]+" ""
+                              (replace-regexp-in-string " " "-" (downcase label)))
+                             "-input")))
+      (kill-new placeholder)
+      (message "Placeholder \"%s\" copied to kill-ring. Use C-y to yank." placeholder)
+      (insert
+       (format
+        "#+HTML: <div class=\"dynamic-variable-input\">
+#+HTML:   <label for=\"%s\">%s:</label>
+#+HTML:   <input type=\"text\" id=\"%s\" placeholder=\"Enter your %s here...\">
+#+HTML: </div>
+
+#+HTML: <script>document.addEventListener('DOMContentLoaded', function() { createVariableInputHandler('%s', '%s'); });</script>
+"
+        input-id label input-id label input-id placeholder))))
+
+  (defun my/org-insert-search-link ()
+    "Insert an org-mode search link that will open a new tab."
+    (interactive)
+    (let* ((placeholder-text (read-string "Enter placeholder text: "))
+           (search-query (read-string "Enter search query: "))
+           ;; Convert spaces to underscores and encode for URL
+           (encoded-query (replace-regexp-in-string " " "_" search-query)))
+      (insert (format "#+ATTR_HTML: :target _blank\n[[https://duckduckgo.com/?q=%s][%s]] in your browser to find the official repository"
+                      encoded-query
+                      placeholder-text))))
+
+  ;; --- Org HTML Export Configuration ---
+  (setq org-export-initial-macro-alist '(("key-cap" . "@@html:<kbd>$1</kbd>@@")))
+
+  (setq org-html-doctype "html5"
+        org-html-html5-fancy t
+        org-html-validation-link nil
+        org-html-head-include-scripts nil
+        org-html-head-include-default-style nil
+        org-export-with-smart-quotes t
+        org-export-with-sub-superscripts nil
+        org-html-postamble-format
+        '(("en" "<div class='footer'><p>Created by %a on %d</p></div>")))
+
+  (defun my-org-set-title-from-filename (backend)
+    "Set the Org-mode title from the current buffer's filename."
+    (when (eq major-mode 'org-mode)
+      (let ((filename (buffer-file-name)))
+        (when filename
+          (let ((title-str (file-name-sans-extension (file-name-nondirectory filename))))
+            (setq org-html-title-prefix (list title-str)))))))
+  (add-hook 'org-export-before-processing-hook 'my-org-set-title-from-filename)
+
+  ;;; --- Org-Publishing ---
+  (defun my-publish-to-html-with-absolute-paths (plist filename pub-dir)
+    "A combined function that:
+1. Publishes only if the file has an EXPORT_FILE_NAME property.
+2. Injects absolute paths to CSS/JS for the final website."
+    (when (with-temp-buffer
+            (insert-file-contents filename)
+            (org-entry-get (point-min) "EXPORT_FILE_NAME"))
+      (let ((org-html-head-extra
+             (concat
+              "<link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/site-style.css\"/>\n"
+              "<script defer type=\"text/javascript\" src=\"/assets/js/site-nav.js\"></script>\n"
+              "<script type=\"text/javascript\" src=\"/assets/js/dynamic-variables.js\"></script>")))
+        (org-html-publish-to-html plist filename pub-dir))))
+
+  (setq org-publish-project-alist
+        (let ((output-dir "~/calebc42-site/"))
+          `(("resume"
+             :base-directory "~/coppermind/career/"
+             :base-extension "org"
+             :include ("resume.org")
+             :publishing-directory ,output-dir
+             :recursive nil
+             :publishing-function my-publish-to-html-with-absolute-paths
+             :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
+            ("projects"
+             :base-directory "~/coppermind/project-codex/"
+             :base-extension "org"
+             :publishing-directory ,(concat output-dir "projects/")
+             :recursive t
+             :publishing-function my-publish-to-html-with-absolute-paths
+             :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
+            ("digital-garden"
+             :base-directory "~/coppermind/"
+             :base-extension "org"
+             :publishing-directory ,(concat output-dir "garden/")
+             :recursive t
+             :exclude "resume\\.org"
+             :exclude-tags ("private")
+             :exclude (regexp-opt '("assets" "data" "emacs"))
+             :publishing-function my-publish-to-html-with-absolute-paths
+             :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
+            ("static-assets"
+             :base-directory "~/coppermind/assets/"
+             :base-extension "css\\|js\\|png\\|jpg\\|gif\\|svg"
+             :publishing-directory ,(concat output-dir "assets/")
+             :publishing-function 'org-publish-attachment
+             :recursive t)
+            ("calebc42.com" :components ("resume" "projects" "digital-garden" "static-assets")))))
+
+  (defun my-org-export-update-asset-paths (backend)
+    "Dynamically calculate relative paths for local HTML previews (C-c C-e h h)."
+    (when (and (eq backend 'html) (buffer-file-name))
+      (let* ((asset-dir (expand-file-name "~/coppermind/assets/"))
+             (current-dir (file-name-directory (buffer-file-name)))
+             (relative-path (file-relative-name asset-dir current-dir))
+             (css-path (concat relative-path "css/site-style.css"))
+             (nav-js-path (concat relative-path "js/site-nav.js"))
+             (dyn-vars-js-path (concat relative-path "js/dynamic-variables.js")))
+        (setq-local org-html-head-extra
+                    (concat
+                     (format "<link rel=\"stylesheet\" type=\"text/css\" href=\"%s\"/>\n" css-path)
+                     (format "<script defer type=\"text/javascript\" src=\"%s\"></script>\n" nav-js-path)
+                     (format "<script type=\"text/javascript\" src=\"%s\"></script>" dyn-vars-js-path))))))
+  (add-hook 'org-export-before-processing-hook 'my-org-export-update-asset-paths))
+#+end_src

@@ -1,0 +1,27 @@
+#+TITLE: My Emacs Configuration (Master File)
+#+PROPERTY: header-args :tangle ~/.emacs.d/config.el
+
+This is the master file for my Emacs setup. It is built by including the
+various atomic configuration files from the ~init-blocks/~ directory.
+
+* Table of Contents
+#+INCLUDE: "init-blocks/01-packages.org"
+#+INCLUDE: "init-blocks/02-ui.org"
+#+INCLUDE: "init-blocks/03-completion.org"
+#+INCLUDE: "init-blocks/04-export-support.org"
+#+INCLUDE: "init-blocks/05-org-config.org"
+#+INCLUDE: "init-blocks/06-org-roam.org"
+#+INCLUDE: "init-blocks/07-org-transclusion.org"
+#+INCLUDE: "init-blocks/08-tools.org"
+#+INCLUDE: "init-blocks/09-frame.org"
+#+INCLUDE: "init-blocks/11-version-control.org"
+#+INCLUDE: "init-blocks/10-custom.org"
+
+* Error handling
+#+begin_src emacs-lisp
+(defun load-config-safely (file)
+  "Load a configuration file with error handling."
+  (condition-case err
+      (load-file file)
+    (error (message "Error loading %s: %s" file err))))
+#+end_src

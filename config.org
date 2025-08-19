@@ -1,0 +1,33 @@
+#+TITLE: My Emacs Configuration (Master Loader)
+#+PROPERTY: header-args :tangle ~/.emacs.d/config.el
+
+This file tangles the main `config.el` loader. The loader adds the `elisp`
+directory to the load path and then loads all the modular configuration files in order.
+
+#+begin_src emacs-lisp
+;;; -*- lexical-binding: t -*-
+
+;; Add the directory containing our tangled files to the load-path
+(add-to-list 'load-path (expand-file-name "elisp" user-emacs-directory))
+
+;; Load all the configuration modules in order
+
+;; Core Setup
+(load "01-packages")
+
+;; Development Tools & Workflow
+(load "tools/02-completion")
+(load "tools/03-export")
+(load "tools/04-dev")
+(load "tools/05-version-control")
+
+;; Org Mode Configuration
+(load "org/06-core")
+(load "org/07-functions")
+(load "org/08-roam")
+(load "org/09-transclusion")
+(load "org/10-publishing")
+
+;; Final UI and Customization
+(load "11-ui")
+#+end_src

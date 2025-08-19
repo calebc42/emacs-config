@@ -1,0 +1,40 @@
+#+PROPERTY: header-args :tangle ~/.emacs.d/elisp/tools/04-dev.el
+
+* LSP / Snippets / Dev Tools
+#+begin_src emacs-lisp
+;; Language Server Protocol support
+(use-package lsp-mode
+  :commands (lsp lsp-deferred)
+  :init (setq lsp-keymap-prefix "C-c l"))
+
+(use-package lsp-ui
+  :after lsp-mode
+  :commands lsp-ui-mode)
+
+(use-package terraform-mode
+  :hook (terraform-mode . lsp-deferred))
+
+(use-package ansible
+  :defer t)
+
+;; Snippet expansion
+(use-package yasnippet
+  :config
+  (let ((snippet-dir "~/coppermind/snippets"))
+    (unless (file-directory-p snippet-dir)
+      (make-directory snippet-dir t))
+    (yas-load-directory snippet-dir))
+  (yas-global-mode 1))
+
+;; On-the-fly syntax checking
+(use-package flycheck
+  :config (global-flycheck-mode))
+
+(use-package savehist
+:config (savehist-mode 1))
+
+(use-package recentf
+  :config 
+  (recentf-mode 1)
+  (setq recentf-max-saved-items 100))
+#+end_src
