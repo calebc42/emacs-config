@@ -143,16 +143,10 @@ Packages needed for exporting source code nicely.
 ** Version Control
 #+begin_src emacs-lisp
 (use-package magit
-  :bind (("C-x g" . magit-status))
-  :config
-  (defun my/magit-rad-push ()
-    "Run 'rad push' in the current repository's root."
-    (interactive)
-    (magit-run-git-async "rad" "push"))
-
-  (transient-append-suffix 'magit-push '(0)
-    '("R" "Radicle"
-      (lambda () (interactive) (magit-run-git-async "rad" "push")))))
+  :bind (("C-x g" . magit-status)
+         :map magit-mode-map
+         ("R" . (lambda () (interactive)
+                  (magit-run-git-async "rad" "push")))))
 #+end_src
 
 
