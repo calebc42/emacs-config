@@ -1,5 +1,7 @@
 ;;; -*- lexical-binding: t -*-
 ;;; init.el --- Bootstrap for a Literate Emacs Configuration
+;;; If this file breaks, run:
+;; ```` M-x load-file RET ~/.emacs.d/config.el.last-good RET
 
 ;; --- 1. Set up Custom File ---
 ;; Tell Emacs where to save customizations *before* anything else.
