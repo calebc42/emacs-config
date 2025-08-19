@@ -7,9 +7,19 @@ directory to the load path and then loads all the modular configuration files in
 #+begin_src emacs-lisp
 ;;; -*- lexical-binding: t -*-
 
-;; Add the directory containing our tangled files to the load-path
-(add-to-list 'load-path (expand-file-name "elisp" user-emacs-directory))
+(global-set-key (kbd "<f5>") #'my/build-config)
 
+(defun my/build-config ()
+  "Tangle config.org → config.el and byte-compile it."
+  (interactive)
+  (let* ((org-file (expand-file-name "config.org" "~/coppermind/emacs"))
+         (dest-el  (expand-file-name "config.el"  user-emacs-directory))
+         (script   (expand-file-name "shell/scripts/emacs-build-config.sh" "~/coppermind")))
+    ;; Run the external script
+    (unless (file-executable-p script)
+      (error "Script not found or not executable: %s" script))
+    (with-temp-buffer
+      (shell-command script))))
 #+end_src
 
 * Package Management

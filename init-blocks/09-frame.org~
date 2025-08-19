@@ -1,6 +1,0 @@
-* 9. Frame Geometry
-#+begin_src emacs-lisp
-;; Set the initial and default window size and position.
-(setq initial-frame-alist  '((top . 10) (left . -640) (width . 105) (height . 70)))
-(setq default-frame-alist  '((top . 10) (left . -640) (width . 105) (height . 50)))
-#+end_src
