@@ -1,8 +1,9 @@
 #+TITLE: Master Emacs Configuration
 #+PROPERTY: header-args :tangle ~/.emacs.d/config.el
-Test hook.
+
 This file tangles the main `config.el` loader. The loader adds the `elisp`
 directory to the load path and then loads all the modular configuration files in order.
+
 * Bootstrap
 #+begin_src emacs-lisp
 ;;; -*- lexical-binding: t -*-
@@ -29,8 +30,8 @@ This section sets up `use-package`, which is essential for managing the rest of 
 ;; Performance Management.
 (setq gc-cons-threshold (* 100 1024 1024)) ; 100MB
 (add-hook 'emacs-startup-hook
-        (lambda ()
-          (setq gc-cons-threshold (* 20 1024 1024)))) ; 20MB after startup
+          (lambda ()
+            (setq gc-cons-threshold (* 20 1024 1024)))) ; 20MB after startup
 
 ;; Ensure the 'use-package' macro is available.
 (unless (package-installed-p 'use-package)
@@ -41,7 +42,6 @@ This section sets up `use-package`, which is essential for managing the rest of 
 (setq use-package-always-ensure t
       use-package-expand-minimally t
       use-package-compute-statistics t)
-
 #+end_src
 
 * Development Tools & Workflow
@@ -74,8 +74,6 @@ Configuration for a modern completion system using Vertico, Consult, and Embark.
   (("C-." . embark-act)
    ("M-." . embark-dwim)))
 
-;; This is the missing package that provides integration between Embark and Consult.
-;; `use-package` will automatically install it on the next startup.
 (use-package embark-consult
   :after (embark consult))
 
@@ -83,18 +81,9 @@ Configuration for a modern completion system using Vertico, Consult, and Embark.
   :config (savehist-mode 1))
 
 (use-package recentf
-  :config 
+  :config
   (recentf-mode 1)
   (setq recentf-max-saved-items 100))
-
-;; Corfu is an alternative to Vertico for in-buffer completion.
-;; It's best to use one stack at a time to avoid conflicts.
-;; (use-package corfu
-;;   :custom
-;;   (corfu-auto t)
-;;   (corfu-quit-no-match 'separator)
-;;   :init
-;;   (global-corfu-mode))
 #+end_src
 
 ** Source-Block Export Support
@@ -149,10 +138,9 @@ Packages needed for exporting source code nicely.
                   (magit-run-git-async "rad" "push")))))
 #+end_src
 
-
 * Org Mode Configuration
-** Core Workflow
-Contains the main setup for Org mode, including general settings.
+All Org mode configuration, including core settings, custom functions, and publishing,
+is consolidated here to ensure correct load order.
 
 #+begin_src emacs-lisp
 (use-package org
@@ -163,104 +151,116 @@ Contains the main setup for Org mode, including general settings.
          ("C-c h e" . my/org-insert-html-emphasis)
          ("C-c h l" . my/org-insert-search-link))
   :config
-  ;; --- General Org Settings ---
-  (setq org-directory              "~/coppermind"
-        org-agenda-files           '("~/coppermind")
-        org-ellipsis               " ▾"
-        org-startup-indented       t
-        org-default-notes-file     (expand-file-name "inbox.org" org-directory))
+  ;; --- 1. Core Settings ---
+  (setq org-directory             "~/coppermind"
+        org-agenda-files          '("~/coppermind")
+        org-ellipsis              " ▾"
+        org-startup-indented      t
+        org-default-notes-file    (expand-file-name "inbox.org" org-directory))
 
-  ;; Automatically enable spell checking for Org mode files
   (add-hook 'org-mode-hook #'flyspell-mode)
 
-  ;; Load languages for Org Babel source blocks
   (org-babel-do-load-languages
    'org-babel-load-languages
    '((shell      . t)
      (emacs-lisp . t)))
-  )
-#+end_src
 
-** Custom Org Functions
-Contains all custom helper functions related to Org mode.
-
-#+begin_src emacs-lisp
-  (defun my/org-insert-key-macro ()
-    "Insert {{{key-cap()}}} and place point inside."
-    (interactive)
-    (insert "{{{key-cap()}}}")
-    (backward-char 4))
-
-  (defun my/org-insert-html-strong ()
-    "Insert an Org HTML '<strong>' tag and position point inside."
-    (interactive)
-    (insert "@@html:<strong></strong>@@")
-    (backward-char 11))
-
-  (defun my/org-insert-html-emphasis ()
-    "Insert an Org HTML '<em>' tag and position point inside."
-    (interactive)
-    (insert "@@html:<em></em>@@")
-    (backward-char 9))
-
-  (defun my/org-insert-dynamic-variable ()
-    "Prompt for a variable label and name, create a placeholder using a prefix,
-  add it to the kill-ring, and insert the necessary HTML/JS."
-    (interactive)
-    (let* ((label (read-from-minibuffer "Input Label (e.g., Windows Username): "))
-           (variable-name (read-from-minibuffer "Variable Name (e.g., USERNAME): "))
-           ;; Use a prefix-based format
-           (placeholder (format "DYNAMIC_VAR_%s" variable-name))
-           (input-id (concat (replace-regexp-in-string
-                              "[^a-zA-Z0-9-]+" ""
-                              (replace-regexp-in-string " " "-" (downcase label)))
-                             "-input")))
-      (kill-new placeholder)
-      (message "Placeholder \"%s\" copied to kill-ring. Use C-y to yank." placeholder)
-      (insert
-       (format
-        "#+HTML: <div class=\"dynamic-variable-input\">
-  ,#+HTML:   <label for=\"%s\">%s:</label>
-  ,#+HTML:   <input type=\"text\" id=\"%s\" placeholder=\"Enter your %s here...\">
-  ,#+HTML: </div>
-
-  ,#+HTML: <script>document.addEventListener('DOMContentLoaded', function() { createVariableInputHandler('%s', '%s'); });</script>
-  "
-        input-id label input-id label input-id placeholder))))
-
-  (defun my/org-insert-search-link ()
-    "Insert an org-mode search link that will open a new tab."
-    (interactive)
-    (let* ((placeholder-text (read-string "Enter placeholder text: "))
-           (search-query (read-string "Enter search query: "))
-           ;; Convert spaces to underscores and encode for URL
-           (encoded-query (replace-regexp-in-string " " "_" search-query)))
-      (insert (format "#+ATTR_HTML: :target _blank\n[[https://duckduckgo.com/?q=%s][%s]] in your browser to find the official repository"
-                      encoded-query
-                      placeholder-text))))
-
-  (defun my-org-set-title-from-filename (backend)
-    "Set the Org-mode title from the current buffer's filename."
-    (when (eq major-mode 'org-mode)
-      (let ((filename (buffer-file-name)))
-        (when filename
-          (let ((title-str (file-name-sans-extension (file-name-nondirectory filename))))
-            (setq org-html-title-prefix (list title-str)))))))
-
+  ;; --- Custom Functions (Define them BEFORE they are used) ---
   (defun my-org-export-update-asset-paths (backend)
-    "Dynamically calculate relative paths for local HTML previews (C-c C-e h h)."
-    (when (and (eq backend 'html) (buffer-file-name))
+    "Dynamically calculate relative paths for local HTML previews."
+    (when (eq backend 'html)
       (let* ((asset-dir (expand-file-name "~/coppermind/assets/"))
-             (current-dir (file-name-directory (buffer-file-name)))
+             (current-dir (if (buffer-file-name)
+                             (file-name-directory (buffer-file-name))
+                           default-directory))
              (relative-path (file-relative-name asset-dir current-dir))
              (css-path (concat relative-path "css/site-style.css"))
              (nav-js-path (concat relative-path "js/site-nav.js"))
              (dyn-vars-js-path (concat relative-path "js/dynamic-variables.js")))
+        
+        ;; Set as buffer-local variable for this export
         (setq-local org-html-head-extra
                     (concat
                      (format "<link rel=\"stylesheet\" type=\"text/css\" href=\"%s\"/>\n" css-path)
                      (format "<script defer type=\"text/javascript\" src=\"%s\"></script>\n" nav-js-path)
-                     (format "<script type=\"text/javascript\" src=\"%s\"></script>" dyn-vars-js-path))))))
+                     (format "<script type=\"text/javascript\" src=\"%s\"></script>\n" dyn-vars-js-path)))
+        
+        ;; Debug output
+        (message "Dynamic assets: CSS=%s, Nav=%s, Vars=%s" css-path nav-js-path dyn-vars-js-path))))
+
+  ;; Better hook - runs during the export process when variables are actually used
+  (defun my-org-export-filter-options (backend)
+    "Set up asset paths during export."
+    (my-org-export-update-asset-paths backend))
+
+  ;; --- Add Hooks AFTER Functions are Defined ---
+  (add-hook 'org-export-before-processing-hook #'my-org-export-filter-options)
+  (add-hook 'org-export-before-parsing-hook #'my-org-export-filter-options)
+
+  ;; --- Publishing Configuration ---
+  (defun my-publish-to-html-with-dynamic-paths (plist filename pub-dir)
+    "Publishes a file to HTML with properly calculated asset paths."
+    ;; Check if file should be published (has EXPORT_FILE_NAME property)
+    (let ((should-publish (with-temp-buffer
+                            (insert-file-contents filename)
+                            (goto-char (point-min))
+                            (org-entry-get (point-min) "EXPORT_FILE_NAME"))))
+      (when should-publish
+        ;; Calculate paths dynamically
+        (let* ((asset-dir (expand-file-name "~/coppermind/assets/"))
+               (source-dir (file-name-directory filename))
+               (relative-path (file-relative-name asset-dir source-dir))
+               (css-path (concat relative-path "css/site-style.css"))
+               (nav-js-path (concat relative-path "js/site-nav.js"))
+               (dyn-vars-js-path (concat relative-path "js/dynamic-variables.js"))
+               ;; Create the head extra content
+               (head-extra (concat
+                            (format "<link rel=\"stylesheet\" type=\"text/css\" href=\"%s\"/>\n" css-path)
+                            (format "<script defer type=\"text/javascript\" src=\"%s\"></script>\n" nav-js-path)
+                            (format "<script type=\"text/javascript\" src=\"%s\"></script>" dyn-vars-js-path)))
+               ;; Merge with any existing head extra from plist
+               (final-plist (plist-put (copy-sequence plist) :html-head-extra head-extra)))
+          
+          ;; Debug info
+          (message "Publishing %s with assets from %s" filename relative-path)
+          
+          ;; Call the original HTML publish function with our modified plist
+          (org-html-publish-to-html final-plist filename pub-dir)))))
+
+  (setq org-publish-project-alist
+        (let ((output-dir "~/calebc42-site/"))
+          `(("resume"
+             :base-directory "~/coppermind/career/"
+             :base-extension "org"
+             :include ("resume.org")
+             :publishing-directory ,output-dir
+             :recursive nil
+             :publishing-function my-publish-to-html-with-dynamic-paths
+             :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
+            ("projects"
+             :base-directory "~/coppermind/project-codex/"
+             :base-extension "org"
+             :publishing-directory ,(concat output-dir "projects/")
+             :recursive t
+             :publishing-function my-publish-to-html-with-dynamic-paths
+             :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
+            ("digital-garden"
+             :base-directory "~/coppermind/"
+             :base-extension "org"
+             :publishing-directory ,(concat output-dir "garden/")
+             :recursive t
+             :exclude "resume\\.org"
+             :exclude-tags ("private")
+             :exclude ,(regexp-opt '("assets" "data" "emacs"))
+             :publishing-function my-publish-to-html-with-dynamic-paths
+             :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
+            ("static-assets"
+             :base-directory "~/coppermind/assets/"
+             :base-extension "css\\|js\\|png\\|jpg\\|gif\\|svg"
+             :publishing-directory ,(concat output-dir "assets/")
+             :publishing-function 'org-publish-attachment
+             :recursive t)
+            ("calebc42.com" :components ("resume" "projects" "digital-garden" "static-assets"))))))
 #+end_src
 
 ** Org-Roam
@@ -276,25 +276,24 @@ Contains all custom helper functions related to Org mode.
          ("C-c n i" . org-roam-node-insert)
          ("C-c n c" . org-roam-capture))
   :config
-    (setq org-roam-directory           (expand-file-name "~/coppermind/")
-          org-roam-db-location         (expand-file-name "org-roam.db" org-roam-directory)
-          org-roam-node-display-template
-          (concat "${title:*} " (propertize "${tags:10}" 'face 'org-tag)))
+  (setq org-roam-directory           (expand-file-name "~/coppermind/")
+        org-roam-db-location         (expand-file-name "org-roam.db" org-roam-directory)
+        org-roam-node-display-template
+        (concat "${title:*} " (propertize "${tags:10}" 'face 'org-tag)))
 
-    (setq org-roam-file-exclude-regexp
-      '("/assets/"
-        "/data/"))
+  (setq org-roam-file-exclude-regexp
+        '("/assets/"
+          "/data/"))
 
-    (setq org-roam-capture-templates
-      '(("d" "default" plain "%?"
-         :target (file+head "${slug}.org"
-                           "#+title: ${title}\n#+date: %U\n\n")
-         :unnarrowed t)))
+  (setq org-roam-capture-templates
+        '(("d" "default" plain "%?"
+           :target (file+head "${slug}.org"
+                              "#+title: ${title}\n#+date: %U\n\n")
+           :unnarrowed t)))
 
   (use-package org-roam-ui
     :after org-roam
-    :bind ("C-c n u" . org-roam-ui-mode))
-)
+    :bind ("C-c n u" . org-roam-ui-mode)))
 #+end_src
 
 ** Org-Transclusion
@@ -304,63 +303,6 @@ Contains all custom helper functions related to Org mode.
   :bind (("C-c n t" . org-transclusion-add)
          ("C-c n T" . org-transclusion-mode))
   :config (add-hook 'org-mode-hook #'org-transclusion-mode))
-#+end_src
-
-* Website Publishing Configuration
-For publishing the calebc42.com website.
-It relies on the core Org settings and functions defined in `Core Workflow`.
-
-#+begin_src emacs-lisp
-;; --- Custom Publishing Function ---
-(defun my-publish-to-html-with-absolute-paths (plist filename pub-dir)
-  "A combined function that:
-1. Publishes only if the file has an EXPORT_FILE_NAME property.
-2. Injects absolute paths to CSS/JS for the final website."
-  (when (with-temp-buffer
-          (insert-file-contents filename)
-          (org-entry-get (point-min) "EXPORT_FILE_NAME"))
-    (let ((org-html-head-extra
-           (concat
-            "<link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/css/site-style.css\"/>\n"
-            "<script defer type=\"text/javascript\" src=\"/assets/js/site-nav.js\"></script>\n"
-            "<script type=\"text/javascript\" src=\"/assets/js/dynamic-variables.js\"></script>")))
-      (org-html-publish-to-html plist filename pub-dir))))
-
-;; --- Main Publishing Project Definition ---
-(setq org-publish-project-alist
-      (let ((output-dir "~/calebc42-site/"))
-        `(("resume"
-           :base-directory "~/coppermind/career/"
-           :base-extension "org"
-           :include ("resume.org")
-           :publishing-directory ,output-dir
-           :recursive nil
-           :publishing-function my-publish-to-html-with-absolute-paths
-           :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
-          ("projects"
-           :base-directory "~/coppermind/project-codex/"
-           :base-extension "org"
-           :publishing-directory ,(concat output-dir "projects/")
-           :recursive t
-           :publishing-function my-publish-to-html-with-absolute-paths
-           :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
-          ("digital-garden"
-           :base-directory "~/coppermind/"
-           :base-extension "org"
-           :publishing-directory ,(concat output-dir "garden/")
-           :recursive t
-           :exclude "resume\\.org"
-           :exclude-tags ("private")
-           :exclude (regexp-opt '("assets" "data" "emacs"))
-           :publishing-function my-publish-to-html-with-absolute-paths
-           :html-postamble "<p class=\"author\">Author: %a</p><p class=\"date\">Last modified: %T</p>")
-          ("static-assets"
-           :base-directory "~/coppermind/assets/"
-           :base-extension "css\\|js\\|png\\|jpg\\|gif\\|svg"
-           :publishing-directory ,(concat output-dir "assets/")
-           :publishing-function 'org-publish-attachment
-           :recursive t)
-          ("calebc42.com" :components ("resume" "projects" "digital-garden" "static-assets")))))
 #+end_src
 
 * Final UI and Customization
@@ -377,5 +319,4 @@ It relies on the core Org settings and functions defined in `Core Workflow`.
 ;; Set the initial and default window size and position.
 (setq initial-frame-alist  '((top . 10) (left . -640) (width . 105) (height . 70)))
 (setq default-frame-alist  '((top . 10) (left . -640) (width . 105) (height . 50)))
-
 #+end_src
